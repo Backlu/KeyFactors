@@ -26,7 +26,8 @@
   
   
 - Sample Code
-```
+
+```python
 #init
 diag = Diag()
 #load Data
