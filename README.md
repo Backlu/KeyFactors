@@ -26,11 +26,12 @@
   
   
 - Sample Code
-```
+
+```python
 #init
 diag = Diag()
 #load Data
-diag._load_mesdata()
+diag.load_mesdata()
 #組大表
 diag.getbigtable()
 #集中性

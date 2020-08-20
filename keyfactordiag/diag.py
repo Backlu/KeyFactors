@@ -66,7 +66,7 @@ class Diag(object):
         self.ispreprocessed=False
         
         
-    def _load_mesdata(self):
+    def load_mesdata(self):
         self.rawdata['df_fatpTest'] = pd.read_excel(self.dpath_fatptest)
         self.rawdata['df_fatpRepair'] = pd.read_excel(self.dpath_fatprepair)
         self.rawdata['df_fatpTrace'] = pd.read_excel(self.dpath_fatptrace)
