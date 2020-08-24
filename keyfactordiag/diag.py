@@ -136,18 +136,18 @@ class Diag(object):
         df_fatpTrace['TYPE'] = df_fatpTrace['TYPE'].map(lambda x: x.strip())
         df_fatpTrace = df_fatpTrace[(df_fatpTrace['TYPE'] != "") & ~(df_fatpTrace['KEY_PART_SN'].isna())]
         df_fatpTrace['SERIAL_NUMBER'] = df_fatpTrace['SERIAL_NUMBER'].astype(str)
-        df_fatpTrace['WORK_TIME']=df_fatpTrace['WORK_TIME'].map(lambda x: x.replace('下午','').replace('上午',''))
-        df_fatpTrace = df_fatpTrace[df_fatpTrace['WORK_TIME'].str.len()==18]
-        df_fatpTrace['WORK_TIME']=df_fatpTrace['WORK_TIME'].map(lambda x: datetime.strptime(x, '%Y/%m/%d  %H:%M:%S'))
+        df_fatpTrace['WORK_TIME']=df_fatpTrace['WORK_TIME'].map(lambda x: x.replace('下午','PM').replace('上午','AM'))
+        df_fatpTrace = df_fatpTrace[df_fatpTrace['WORK_TIME'].str.len()==20]
+        df_fatpTrace['WORK_TIME']=df_fatpTrace['WORK_TIME'].map(lambda x: datetime.strptime(x, '%Y/%m/%d %p %H:%M:%S'))
         df_fatpTrace.drop_duplicates(inplace=True)
         self.rawdata['df_fatpTrace'] = df_fatpTrace
 
         #FATP STATION
         df_fatpStation = self.rawdata['df_fatpStation']
         df_fatpStation['SERIAL_NUMBER'] = df_fatpStation['SERIAL_NUMBER'].astype(str)
-        df_fatpStation['IN_STATION_TIME']=df_fatpStation['IN_STATION_TIME'].map(lambda x: x.replace('下午','').replace('上午',''))
-        df_fatpStation = df_fatpStation[df_fatpStation['IN_STATION_TIME'].str.len()==18]
-        df_fatpStation['IN_STATION_TIME']=df_fatpStation['IN_STATION_TIME'].map(lambda x: datetime.strptime(x, '%Y/%m/%d  %H:%M:%S'))
+        df_fatpStation['IN_STATION_TIME']=df_fatpStation['IN_STATION_TIME'].map(lambda x: x.replace('下午','PM').replace('上午','AM'))
+        df_fatpStation = df_fatpStation[df_fatpStation['IN_STATION_TIME'].str.len()==20]
+        df_fatpStation['IN_STATION_TIME']=df_fatpStation['IN_STATION_TIME'].map(lambda x: datetime.strptime(x, '%Y/%m/%d %p %H:%M:%S'))
         self.rawdata['df_fatpStation'] = df_fatpStation
 
         #FATP REPAIR
@@ -156,9 +156,9 @@ class Diag(object):
         df_fatpRepair['SERIAL_NUMBER'] = df_fatpRepair['SERIAL_NUMBER'].astype(str)
         df_fatpRepair.dropna(subset=['SERIAL_NUMBER', 'TYPE', 'OLD_KEY_PART_SN'], inplace=True)
         for timecol in ['TEST_TIME','IN_LINE_TIME','REPAIR_TIME']:
-            df_fatpRepair[timecol]=df_fatpRepair[timecol].map(lambda x: x.replace('下午','').replace('上午',''))
-            df_fatpRepair = df_fatpRepair[df_fatpRepair[timecol].str.len()==18]
-            df_fatpRepair[timecol]=df_fatpRepair[timecol].map(lambda x: datetime.strptime(x, '%Y/%m/%d  %H:%M:%S'))
+            df_fatpRepair[timecol]=df_fatpRepair[timecol].map(lambda x: x.replace('下午','PM').replace('上午','AM'))
+            df_fatpRepair = df_fatpRepair[df_fatpRepair[timecol].str.len()==20]
+            df_fatpRepair[timecol]=df_fatpRepair[timecol].map(lambda x: datetime.strptime(x, '%Y/%m/%d %p %H:%M:%S'))
         self.rawdata['df_fatpRepair'] = df_fatpRepair
         
         #STM STATION
@@ -166,12 +166,12 @@ class Diag(object):
         df_smtStation_old = self.rawdata['df_smtStation_old']
         df_smtStation_cur['SERIAL_NUMBER'] = df_smtStation_cur['SERIAL_NUMBER'].astype(str)
         df_smtStation_old['SERIAL_NUMBER'] = df_smtStation_old['SERIAL_NUMBER'].astype(str)
-        df_smtStation_cur['IN_STATION_TIME']=df_smtStation_cur['IN_STATION_TIME'].map(lambda x: x.replace('下午','').replace('上午',''))
-        df_smtStation_cur = df_smtStation_cur[df_smtStation_cur['IN_STATION_TIME'].str.len()>17]
-        df_smtStation_cur['IN_STATION_TIME']=df_smtStation_cur['IN_STATION_TIME'].map(lambda x: datetime.strptime(x, '%Y/%m/%d  %H:%M:%S'))
+        df_smtStation_cur['IN_STATION_TIME']=df_smtStation_cur['IN_STATION_TIME'].map(lambda x: x.replace('下午','PM').replace('上午','AM'))
+        df_smtStation_cur = df_smtStation_cur[df_smtStation_cur['IN_STATION_TIME'].str.len()>19]
+        df_smtStation_cur['IN_STATION_TIME']=df_smtStation_cur['IN_STATION_TIME'].map(lambda x: datetime.strptime(x, '%Y/%m/%d %p %H:%M:%S'))
         df_smtStation_old['IN_STATION_TIME']=df_smtStation_old['IN_STATION_TIME'].map(lambda x: x.replace('下午','').replace('上午',''))
-        df_smtStation_old = df_smtStation_old[df_smtStation_old['IN_STATION_TIME'].str.len()>17]
-        df_smtStation_old['IN_STATION_TIME']=df_smtStation_old['IN_STATION_TIME'].map(lambda x: datetime.strptime(x, '%Y/%m/%d  %H:%M:%S'))
+        df_smtStation_old = df_smtStation_old[df_smtStation_old['IN_STATION_TIME'].str.len()>19]
+        df_smtStation_old['IN_STATION_TIME']=df_smtStation_old['IN_STATION_TIME'].map(lambda x: datetime.strptime(x, '%Y/%m/%d %p %H:%M:%S'))
         self.rawdata['df_smtStation_cur'] = df_smtStation_cur
         self.rawdata['df_smtStation_old'] = df_smtStation_old
         self.ispreprocessed=True
@@ -436,7 +436,7 @@ class Diag(object):
         fs.identify_missing(missing_threshold=0.3)
         fs.identify_single_unique()
         train = fs.remove(methods = ['missing', 'single_unique'])
-        fs.check_removal()
+        print(fs.check_removal())
         fs = FeatureSelector(data = train, labels = train_labels)        
         
         #One-Hot Encoding
@@ -456,19 +456,19 @@ class Diag(object):
             if f=='label':
                 continue
             ent1, p_data1, ent0, p_data0, ent = self._getentropy(df_entdata, f)
-            entlist.append([f, ent1, str(dict(p_data1.sort_index(ascending=False))), ent0, str(dict(p_data0.sort_index(ascending=False))), ent])
+            #entlist.append([f, ent1, str(dict(p_data1.sort_index(ascending=False))), ent0, str(dict(p_data0.sort_index(ascending=False))), ent])
+            entlist.append([f, ent1, dict(p_data1.sort_index(ascending=False)), ent0, dict(p_data0.sort_index(ascending=False)), ent])
 
         df_ent = pd.DataFrame(entlist)
         df_ent.columns = ['feature','entropy(P)','Qty(P)','entropy(N)','Qty(N)','entropy(mean)']
         #df_ent['exp'] = df_ent['entropy(mean)'].map(lambda x: (rootent-x)/rootent) #exp: 解釋了多少比例的不確定性
         df_ent = df_ent.sort_values(by='entropy(mean)').reset_index(drop=True)
         self.factortable['main']=df_ent
-        
         #Layer 2 factor analysis
         topN=5
         for s, layer1 in enumerate(df_ent['feature'][:topN].values):
             groupname = layer1.split(':')[1]
-            partname = layer1.split(':')[2].split('_')[-1]    
+            partname = layer1.split(':')[3]#s.split('_')[-1]    
             df_entdata = pd.concat([fs.data_all[one_hot_features], train_labels], axis=1)
             df_entdata=df_entdata[df_entdata[layer1]==1]
             rootent = sc.stats.entropy(df_entdata['label'].value_counts()/len(df_entdata['label']), base=2)
@@ -477,13 +477,13 @@ class Diag(object):
                 if f=='label':
                     continue
                 ent1, p_data1, ent0, p_data0, ent = self._getentropy(df_entdata, f)
-                entlist.append([f, ent/1, str(dict(p_data1.sort_index(ascending=False))), ent0, str(dict(p_data0.sort_index(ascending=False))), ent])
+                entlist.append([f, ent/1, dict(p_data1.sort_index(ascending=False)), ent0, dict(p_data0.sort_index(ascending=False)), ent])
             df_ent = pd.DataFrame(entlist)
             df_ent.columns = ['feature','entropy(P)','Qty(P)','entropy(N)',f'Qty(N)','entropy(mean)']
             #df_ent['exp'] = df_ent['entropy(mean)'].map(lambda x: (rootent-x)/rootent)
             df_ent.sort_values(by='entropy(mean)', inplace=True)
             df_ent.reset_index(drop=True, inplace=True)
-            self.factortable[f'{s}_{groupname}-{partname}']=df_ent
+            self.factortable[f'{s}:{groupname}:{partname}']=df_ent
 
 
     #====== OUTPUT EXCEL REPORT ========
@@ -496,26 +496,33 @@ class Diag(object):
         writer.save()
         pass
     
+    
     def output_factorranktable(self):
+        outputcols=['Type', 'Factor A', 'Factor B', 'Factor C', 'Pass', 'Fail', 'Others-Pass', 'Others-Fail', 'entropy(mean)','rank']
         writer=pd.ExcelWriter('output/集中性分析Report.xlsx') 
         for k, df in self.factortable.items():
+            #Table格式 ##FIXME
+            df['Type']=df['feature'].map(lambda x: x.split(':')[0])
+            df['Factor A']=df['feature'].map(lambda x: x.split(':')[1])
+            df['Factor B']=df['feature'].map(lambda x: x.split(':')[2])
+            df['Factor C']=df['feature'].map(lambda x: x.split(':')[3])
+            del df['feature']
+            df['Pass']=df['Qty(P)'].map(lambda x: x.get('Pass',0))
+            df['Fail']=df['Qty(P)'].map(lambda x: x.get('Fail',0) )
+            df['Others-Pass']=df['Qty(N)'].map(lambda x: x.get('Pass',0))
+            df['Others-Fail']=df['Qty(N)'].map(lambda x: x.get('Fail',0) )
+            del df['Qty(P)']
+            del df['Qty(N)']
+            del df['entropy(P)']
+            del df['entropy(N)']
+            df.reset_index(inplace=True)
+            df.rename(columns={'index':'rank'}, inplace=True)            
+            
+            df = df[outputcols]
+            k = k.replace(':',' | ')
+            k = k.replace('/','')
             df.to_excel(writer, k, index=False)
         writer.save()
         pass
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-        
+
+

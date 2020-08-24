@@ -270,7 +270,7 @@ class FeatureSelector():
             raise ValueError("No training labels provided.")
         
         # One hot encoding
-        features = pd.get_dummies(self.data)
+        features = pd.get_dummies(self.data, prefix_sep=':')
         self.one_hot_features = [column for column in features.columns if column not in self.base_features]
 
         # Add one hot encoded data to original data
