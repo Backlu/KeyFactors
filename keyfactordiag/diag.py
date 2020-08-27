@@ -21,6 +21,9 @@
 # 8/24
 #  - 更新時間轉換的code(上/下午->A/PM)
 #  - 更新輸出欄位格式
+# 8/27
+#  - 增加key_factor
+#  - one_hot_feature改用pd.dummy
 
 # TODO:
 #1. 需要請IT統一提供資料的時間格式, 不能放在程式裡處理
@@ -466,7 +469,7 @@ class Diag(object):
         del df['Qty(N)']
         del df['entropy(P)']
         del df['entropy(N)']  
-        df.sort_values(by='entropy(mean)', inplace=True)
+        df.sort_values(by='entropy(mean)', inplace=True, ignore_index=True)
         df.reset_index(inplace=True)
         df.rename(columns={'index':'rank'}, inplace=True)                    
         df = df[outputcols]
