@@ -48,6 +48,7 @@ class Diag(object):
         'dpath_smttrace_old' : 'sampledata/6_smt_trace_old.xlsx',
         'dpath_smttstation_cur' : 'sampledata/7_smt_station_current.xlsx',
         'dpath_smttstation_old' : 'sampledata/7_smt_station_old.xlsx',
+        'dpath_cfg_relatedmaterials':'config/CN53_A31__REPAIR_MATERIAL_RANKING_2020-08-04.csv',
     }
     
     @classmethod
@@ -57,10 +58,15 @@ class Diag(object):
         else:
             return "Unrecognized attribute name '" + n + "'"    
             
-    def __init__(self, **kwargs):
+    def __init__(self, errorcode, modelname, **kwargs):
         self.__dict__.update(self._defaults)
         self.__dict__.update(kwargs)
+        self.errorcode=errorcode
+        self.modelname=modelname
         self.initpara()
+        self.load_config()
+        self.keyparts = self.getmaterials(self.errorcode, self.modelname)
+        print('keyparts:',self.keyparts)                
     
     def initpara(self):
         self.bigtable={}
@@ -80,6 +86,9 @@ class Diag(object):
         self.rawdata['df_smtStation_cur'] = pd.read_excel(self.dpath_smttstation_cur)
         self.rawdata['df_smtStation_old'] = pd.read_excel(self.dpath_smttstation_old)
         self.ispreprocessed=False
+        
+    def load_config(self):
+        self.cfg_materials = pd.read_csv(self.dpath_cfg_relatedmaterials)
 
 
     #====== 組大表 =======    
@@ -394,6 +403,19 @@ class Diag(object):
     
     
     #====== Factor Ranking =======
+    
+    def getmaterials(self, errcode, modelname):
+        df = self.cfg_materials[(self.cfg_materials['ERROR_CODE']==errcode)&(self.cfg_materials['MODEL_NAME']==modelname)]
+        #df = df.sort_values(by='PROBABILITY', ascending=False)[:3]
+        if df.shape[0]>0:
+            hintlist = df['MATERIAL_REPAIR_SAME_TIME'].values
+            tmplist = []
+            [tmplist.extend(x.split('__')) for x in hintlist]
+            tmplist = np.unique(tmplist)
+            return hintlist
+        else:
+            return []
+        
     def _getentropy(self, df, feature, isonehot=True):
         if isonehot:
             data_f = df[df[feature]==1]
@@ -420,6 +442,36 @@ class Diag(object):
             ent = np.sum(entlist)
             return ent
 
+    def style_ftable(self, df):
+        def getothers(x, cols):
+            k=':'.join(x.split(':')[:3])
+            ret = list(filter(lambda x: k in x, cols))
+            ret = [c.split(':')[-1] for c in ret]
+            return ret        
+        outputcols=['Type', 'Factor A', 'Factor B', 'Factor C', 'Pass', 'Fail','Failrate', 'Others','Others-Pass', 'Others-Fail', 'entropy(mean)','rank','feature']
+        cols = df['feature']
+        df['Type']=df['feature'].map(lambda x: x.split(':')[0])
+        df['Factor A']=df['feature'].map(lambda x: x.split(':')[1])
+        df['Factor B']=df['feature'].map(lambda x: x.split(':')[2])
+        df['Factor C']=df['feature'].map(lambda x: x.split(':')[3])
+        df['Others'] = df['feature'].map(lambda x: getothers(x, cols))
+        #del df['feature']
+        df['Pass']=df['Qty(P)'].map(lambda x: x.get('Pass',0))
+        df['Fail']=df['Qty(P)'].map(lambda x: x.get('Fail',0) )
+        df['Failrate']=df['Fail']/(df['Pass']+df['Fail'])
+        df['Failrate'] = df['Failrate'].map(lambda x: np.round(x,2))
+        df['Others-Pass']=df['Qty(N)'].map(lambda x: x.get('Pass',0))
+        df['Others-Fail']=df['Qty(N)'].map(lambda x: x.get('Fail',0) )
+        del df['Qty(P)']
+        del df['Qty(N)']
+        del df['entropy(P)']
+        del df['entropy(N)']  
+        df.sort_values(by='entropy(mean)', inplace=True)
+        df.reset_index(inplace=True)
+        df.rename(columns={'index':'rank'}, inplace=True)                    
+        df = df[outputcols]
+        return df
+    
     def rankfactor(self):
         df_bigtable_ = self.bigtable['big']
         ##FIXME 暫時移除時間和SN的欄位
@@ -444,14 +496,22 @@ class Diag(object):
         
         #One-Hot Encoding
         fs.identify_zero_importance(task = 'classification', eval_metric = 'auc', n_iterations = 1, early_stopping = True)
-        one_hot_features = fs.one_hot_features
-        base_features = fs.base_features
+        
+        if True:
+            base_features = list(train.columns)
+            features = pd.get_dummies(train, prefix_sep=':')
+            one_hot_features = [column for column in features.columns if column not in base_features]
+            df_entdata_ = pd.concat([features[one_hot_features], train_labels], axis=1)
+            df_entdata = df_entdata_.copy()
+        else:##這邊不用了, 下次拿掉
+            one_hot_features = fs.one_hot_features
+            base_features = fs.base_features
+            df_entdata_ = pd.concat([fs.data_all[one_hot_features], train_labels], axis=1)
+            df_entdata = df_entdata_.copy()
         print('There are %d original features' % len(base_features))
-        print('There are %d one-hot features' % len(one_hot_features))        
+        print('There are %d one-hot features' % len(one_hot_features))
         
         #Layer 1 factor analysis 
-        ocols=['feature','Qty{P}','Qty{N}','entropy(mean)']
-        df_entdata = pd.concat([fs.data_all[one_hot_features], train_labels], axis=1)
         rootent = sc.stats.entropy(df_entdata['label'].value_counts()/len(df_entdata['label']), base=2)
         print('root ent:',rootent)
         entlist = []
@@ -459,20 +519,26 @@ class Diag(object):
             if f=='label':
                 continue
             ent1, p_data1, ent0, p_data0, ent = self._getentropy(df_entdata, f)
-            #entlist.append([f, ent1, str(dict(p_data1.sort_index(ascending=False))), ent0, str(dict(p_data0.sort_index(ascending=False))), ent])
             entlist.append([f, ent1, dict(p_data1.sort_index(ascending=False)), ent0, dict(p_data0.sort_index(ascending=False)), ent])
-
         df_ent = pd.DataFrame(entlist)
         df_ent.columns = ['feature','entropy(P)','Qty(P)','entropy(N)','Qty(N)','entropy(mean)']
         #df_ent['exp'] = df_ent['entropy(mean)'].map(lambda x: (rootent-x)/rootent) #exp: 解釋了多少比例的不確定性
-        df_ent = df_ent.sort_values(by='entropy(mean)').reset_index(drop=True)
+        
+        #改欄位名稱
+        df_ent = self.style_ftable(df_ent)
+        #key_part
+        df_ent['key_factor'] = df_ent['Factor A'].map(lambda x: '1' if x in self.keyparts else '0')
+        if 'MB' in self.keyparts:
+            df_ent.loc[df_ent.query("Type=='smtstation'").index,'key_factor']=1        
+        
         self.factortable['main']=df_ent
+        
         #Layer 2 factor analysis
         topN=5
         for s, layer1 in enumerate(df_ent['feature'][:topN].values):
             groupname = layer1.split(':')[1]
             partname = layer1.split(':')[3]#s.split('_')[-1]    
-            df_entdata = pd.concat([fs.data_all[one_hot_features], train_labels], axis=1)
+            df_entdata = df_entdata_.copy()
             df_entdata=df_entdata[df_entdata[layer1]==1]
             rootent = sc.stats.entropy(df_entdata['label'].value_counts()/len(df_entdata['label']), base=2)
             entlist = []
@@ -484,8 +550,11 @@ class Diag(object):
             df_ent = pd.DataFrame(entlist)
             df_ent.columns = ['feature','entropy(P)','Qty(P)','entropy(N)',f'Qty(N)','entropy(mean)']
             #df_ent['exp'] = df_ent['entropy(mean)'].map(lambda x: (rootent-x)/rootent)
-            df_ent.sort_values(by='entropy(mean)', inplace=True)
-            df_ent.reset_index(drop=True, inplace=True)
+            df_ent = self.style_ftable(df_ent)
+            df_ent['key_factor'] = df_ent['Factor A'].map(lambda x: '1' if x in self.keyparts else '0')
+            if 'MB' in self.keyparts:
+                df_ent.loc[df_ent.query("Type=='smtstation'").index,'key_factor']=1        
+            
             self.factortable[f'{s}:{groupname}:{partname}']=df_ent
 
 
@@ -501,27 +570,9 @@ class Diag(object):
     
     
     def output_factorranktable(self):
-        outputcols=['Type', 'Factor A', 'Factor B', 'Factor C', 'Pass', 'Fail', 'Others-Pass', 'Others-Fail', 'entropy(mean)','rank']
         writer=pd.ExcelWriter('output/集中性分析Report.xlsx') 
         for k, df in self.factortable.items():
-            #Table格式 ##FIXME
-            df['Type']=df['feature'].map(lambda x: x.split(':')[0])
-            df['Factor A']=df['feature'].map(lambda x: x.split(':')[1])
-            df['Factor B']=df['feature'].map(lambda x: x.split(':')[2])
-            df['Factor C']=df['feature'].map(lambda x: x.split(':')[3])
             del df['feature']
-            df['Pass']=df['Qty(P)'].map(lambda x: x.get('Pass',0))
-            df['Fail']=df['Qty(P)'].map(lambda x: x.get('Fail',0) )
-            df['Others-Pass']=df['Qty(N)'].map(lambda x: x.get('Pass',0))
-            df['Others-Fail']=df['Qty(N)'].map(lambda x: x.get('Fail',0) )
-            del df['Qty(P)']
-            del df['Qty(N)']
-            del df['entropy(P)']
-            del df['entropy(N)']
-            df.reset_index(inplace=True)
-            df.rename(columns={'index':'rank'}, inplace=True)            
-            
-            df = df[outputcols]
             k = k.replace(':',' | ')
             k = k.replace('/','')
             df.to_excel(writer, k, index=False)
