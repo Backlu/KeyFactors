@@ -17,6 +17,11 @@
     - class
     - 修改檔名(英文小寫)
     - 刪除不需要的sheet
+  - 10/3
+    - fix bug
+    - 將計算entropy要用的資料放在dict: self.analysis
+    - implement entorpy_analysis    
+
 
 - TODO:
   1. 需要請IT統一提供資料的時間格式, 不能放在程式裡處理
@@ -34,11 +39,14 @@ diag = Diag()
 diag.load_mesdata()
 #組大表
 diag.getbigtable()
-#集中性
-diag.rankfactor()
+diag.get_analysis_table()
+#集中性分析
+entropy_tb_lv1 = diag.entorpy_analysis(filter_factor='All')
+entropy_tb_lv2 = diag.entorpy_analysis(filter_factor='smtstation:ATE:STATION_NAME:ATE1')
 #output excel
 diag.output_bigtable()
-diag.output_factorranktable()
+diag.output_entropy_table()
 ```
 
-![image](img/report_main.jpg)
+![image](img/ui.gif)
+
